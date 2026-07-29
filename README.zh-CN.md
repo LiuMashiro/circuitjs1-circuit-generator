@@ -2,7 +2,7 @@
 
 [English](./README.md) | **中文**
 
-让 AI 生成可直接导入 [circuitjs1](https://github.com/sharpie7/circuitjs1)（在[此处](https://www.falstad.com/circuit/)在线使用）电路模拟器的完整电路。文本格式，用户通过 **文件 → 从文本导入** 粘贴到 circuitjs1 即可。
+让 AI 生成可直接导入 [circuitjs1](https://github.com/sharpie7/circuitjs1)（在[此处](https://www.falstad.com/circuit/)在线使用）电路模拟器的完整电路。文本代码格式，用户通过 **文件 → 从文本导入** 粘贴到 circuitjs1 即可。
 
 
 
@@ -10,9 +10,9 @@
 
 **安装**
 
-下载库，发送至你的 AI 程序。
+下载整个库，作为 skill，发送至你的 AI 程序。AI 程序通常能识别根目录中有 skill.md 的 .zip 文件，或者通过自然语言让 AI 添加这个 skill 也可以。
 
-如果使用网页端 AI，也可以将skill.md中的内容复制至 AI 对话窗口。
+如果使用网页端 AI，也可以将 [skill.MD](skill.MD) 中的内容复制至 AI 对话窗口。但是这会失去 ski 准备的6个有助于 AI 理解的例子。
 
 **使用**
 
