@@ -10,7 +10,7 @@
 
 **安装**
 
-下载整个库，作为 skill，发送至你的 AI 程序。AI 程序通常能识别根目录中有 [`SKILL.md`](./SKILL.md) 的 .zip 文件，或者通过自然语言让 AI 添加这个 skill 也可以。
+下载整个库或 [SKILL.md](./SKILL.md) 发送至你的 AI 程序。AI 程序通常能识别根目录中有 [`SKILL.md`](./SKILL.md) 的 .zip 文件，或者通过自然语言让 AI 添加这个 skill 也可以。
 
 如果使用网页端 AI，也可以将 [`SKILL.md`](./SKILL.md) 中的内容复制至 AI 对话窗口。
 
