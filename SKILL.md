@@ -5,7 +5,7 @@ description: "Generates circuitjs1-importable plain-text circuits from natural l
 
 # CircuitJS1 Circuit Text Generator
 
-This skill enables the AI to generate complete, valid circuitjs1 circuits as plain text. The output can be imported into the circuitjs1 (Falstad) circuit simulator via **File → Import From Text...** without any GUI操作.
+This skill enables the AI to generate complete, valid circuitjs1 circuits as plain text. The output can be imported into the circuitjs1 (Falstad) circuit simulator via **File → Import From Text...** (Chinese UI: 文件 → 从文本导入...) without any GUI operations.
 
 ## When to Invoke
 
@@ -20,11 +20,20 @@ Invoke this skill when:
 
 After the AI generates the circuit text, the user does ONE of:
 
-1. **Import From Text (recommended)**: Open circuitjs1 → menu `File → Import From Text...` → paste the entire text block → click OK.
+1. **Import From Text (recommended)**: Open circuitjs1 → menu `File → Import From Text...` (Chinese UI: 文件 → 从文本导入...) → paste the entire text block → click OK.
 2. **URL parameter**: Replace every `$` with `%24` and every newline with `%0A`, then append to the simulator URL as `?cct=<encoded>`.
-3. **Local file**: Save as `.txt`, then `File → Import From File...`.
+3. **Local file**: Save as `.txt`, then `File → Import From File...` (Chinese UI: 文件 → 从文件导入...).
 
 The AI should always present the circuit inside a fenced code block labeled `circuitjs` so the user can copy it easily.
+
+## Output Language
+
+circuitjs1 itself supports Chinese localization (the GUI, menus, and component labels render in Chinese when the locale is set). Therefore:
+
+- **If the user asks in Chinese**, respond in Chinese for all explanations, expected behavior, and import instructions. The circuit text itself is language-neutral (format is identical regardless of language).
+- **If the user asks in English**, respond in English.
+- When giving menu paths, always show the English path first, then the Chinese in parentheses, e.g. `File → Import From Text... (文件 → 从文本导入...)`.
+- String fields inside the circuit text (sliderText, text labels, model names, scope labels) MAY contain Chinese characters — the escape rules in §4 handle them correctly. When the user uses Chinese, prefer Chinese labels (e.g. sliderText `亮度` for "brightness").
 
 ---
 
@@ -163,7 +172,7 @@ All fields are listed in exact dump order. "State vars" are simulation state; in
 | `g` | GroundElm | `g x1 y1 x2 y2 flags symbolType` |
 | `d` | DiodeElm | `d x1 y1 x2 y2 0` (flags=0 → default model) |
 | `z` | ZenerElm | `z x1 y1 x2 y2 0` (flags=0 → default model) |
-| `t` | TransistorElm | `t x1 y1 x2 y2 flags pnp Vbc Vbe [beta] [modelName]`（beta 缺省=100，modelName 缺省=default） |
+| `t` | TransistorElm | `t x1 y1 x2 y2 flags pnp Vbc Vbe [beta] [modelName]` (beta defaults to 100, modelName defaults to "default") |
 | `f` | MosfetElm | `f x1 y1 x2 y2 flags vt beta` |
 | `209` | PolarCapacitorElm | `209 x1 y1 x2 y2 flags capacitance voltdiff initialVoltage maxNegativeVoltage` |
 
@@ -317,6 +326,29 @@ Both endpoints named `VCC` are connected.
 
 This is the feature that lets the user pick specific component models (e.g. a 1N4148 diode, a 2N2222 transistor, a custom logic block). **Fully supported via text.**
 
+### 6.0 When to use ideal vs. actual models (IMPORTANT — infer from context)
+
+When the user does NOT explicitly specify a part number or model, **infer the intent from circuit complexity**:
+
+- **Prefer IDEAL models (flags=0, default) when**:
+  - The circuit is simple (few components, teaching/demonstration purpose).
+  - The user describes behavior, not specific parts (e.g. "an LED with a resistor", "an NPN switch").
+  - No real part numbers are mentioned.
+  - The user is clearly learning or prototyping conceptually.
+  - For diodes/LEDs: use `flags=0` (default model, fwdrop≈2.1V for LED, ≈0.7V for diode).
+  - For transistors: omit `modelName` (uses "default" model).
+  - For MOSFETs: use `flags=0` with typical `vt=0.75`, `beta=0.03`.
+
+- **Prefer ACTUAL models (custom model definitions) when**:
+  - The user explicitly names a part (e.g. "1N4148 diode", "2N2222 transistor", "1N4007").
+  - The circuit is for realistic simulation (power supply, amplifier with specific biasing).
+  - The user mentions SPICE parameters, datasheet values, or precise electrical characteristics.
+  - For zener diodes with specific breakdown voltages, define a DiodeModel with the correct BV.
+
+- **When uncertain**: default to ideal models (flags=0). They simulate faster and are easier to reason about. You can always mention "used ideal models; tell me a specific part number if you want a real model" in the output.
+
+**Rationale**: ideal models make the circuit's logical behavior transparent and avoid spurious secondary effects (leakage, Early voltage, etc.) that can confuse beginners. Real models add fidelity but also add non-ideal effects that may not match the user's mental model of the circuit.
+
 ### 6.1 DiodeModel (line prefix `34`)
 
 Define a custom diode model, then reference it from a DiodeElm/LEDElm/ZenerElm with `flags=2` (FLAG_MODEL).
@@ -414,6 +446,27 @@ Define a sub-circuit (hierarchical block) containing nested components. This is 
 
 Add a slider to control any component property at runtime.
 
+### 7.0 When to use sliders (IMPORTANT — prefer interactivity)
+
+**Strongly prefer sliders when the user does NOT specify exact values.** This turns a static circuit into an explorable one and is almost always the better UX:
+
+- User says "a resistor and an LED" without a value → use a `38` slider on the resistor (range 100–2000 Ω) so the user can dial in brightness.
+- User says "a voltage source" without a value → use a `172` VarRailElm (built-in slider) instead of a fixed `v` source, range 0–12 V.
+- User says "amplifier with gain" without a value → put a slider on the feedback resistor.
+- User says "RC filter" without values → put sliders on both R and C, or at least on R, so the user can sweep the cutoff frequency.
+- User says "555 timer at some frequency" → put a slider on the timing resistor.
+
+**When NOT to use sliders**:
+- The user gives explicit values (e.g. "220Ω resistor", "5V source") — use fixed values.
+- The circuit is a precise reference design where values matter.
+- The user explicitly asks for a fixed-value circuit.
+
+**Two ways to add a slider**:
+1. **VarRailElm (`172`)** — a voltage source with a built-in slider. Use this for adjustable supplies. The sliderText field is the label.
+2. **Adjustable (`38`)** — a separate line that attaches a slider to ANY existing component's property (resistance, capacitance, frequency, beta, etc.). More flexible; use this for non-source components.
+
+**Slider range guidance**: pick a range that spans roughly 1 order of magnitude below and above the "typical" value, so the user can explore both extremes. E.g. for a 1kΩ resistor, range 100–10000 Ω. For a 5V source, range 0–12 V. Always include 0 in the min for sources so the user can "turn it off".
+
 ```
 38 <elmIndex> <editItem> <minValue> <maxValue> <sliderText>
 ```
@@ -510,8 +563,9 @@ o 0 64 0 2 5.0 0.1
 
 ### Step 1: Understand the request
 - Identify required components (power source, load, control, measurement).
-- Identify whether the user needs custom models (specific diode/transistor part numbers).
-- Identify whether sliders or scopes are desired.
+- **Model selection**: check if the user named specific parts (e.g. "1N4148", "2N2222"). If not, default to ideal models (flags=0). See §6.0 for guidance.
+- **Slider selection**: check if the user gave exact values. If values are missing or vague, prefer sliders (VarRailElm `172` for sources, `38` for other component properties). See §7.0 for guidance.
+- Identify whether scopes are desired (if the circuit has time-varying signals or the user wants to see waveforms, add a scope).
 
 ### Step 2: Plan the layout
 - Sketch coordinates mentally. Use multiples of 8.
@@ -586,16 +640,117 @@ Present the circuit in a fenced code block. Then provide:
 
 ## 10. Examples
 
-Six fully-worked examples are in the `examples/` directory of this skill:
+Six fully-worked examples follow. Study them before generating your own — they cover the most common patterns. Each is a complete, importable circuit.
 
-1. `01_led_circuit.txt` — LED with current-limiting resistor on 5V DC.
-2. `02_rc_lowpass.txt` — RC low-pass filter driven by AC source, with scope on capacitor.
-3. `03_transistor_switch.txt` — NPN transistor switching an LED, base driven by control voltage.
-4. `04_voltage_divider.txt` — 12V divider (8kΩ/4kΩ) with scope showing midpoint voltage (4V).
-5. `05_custom_diode_model.txt` — Diode using a custom 1N4148 model definition.
-6. `06_slider_resistor.txt` — Resistor with an adjustable slider (0–1000 Ω) + scope.
+### 10.1 LED with current-limiting resistor (5V DC)
 
-Study these before generating your own. They cover the most common patterns.
+A red LED on a 5V supply with a 220Ω resistor. Current ≈ (5−2.1)/220 ≈ 13 mA.
+
+```
+$ 1 5.0E-6 10 50 5.0 50
+v 96 256 96 64 0 0 40.0 5.0 0.0 0.0 0.5
+w 96 64 192 64 0
+r 192 64 288 64 0 220.0
+w 288 64 288 176 0
+162 288 176 288 256 0 1.0 0.0 0.0
+w 288 256 96 256 0
+g 96 256 96 288 0
+```
+
+**Demonstrates**: basic passive components, LED (type 162, flags=0 → default LED model), closed loop, ground.
+
+### 10.2 RC low-pass filter with scope
+
+A 1kHz AC source through a 1kΩ resistor into a 1µF capacitor to ground. Cutoff ≈ 160 Hz. Scope plots capacitor voltage.
+
+```
+$ 1 5.0E-6 10 50 5.0 50
+v 96 256 96 64 0 1 1000.0 5.0 0.0 0.0 0.5
+w 96 64 192 64 0
+r 192 64 288 64 0 1000.0
+w 288 64 352 64 0
+c 352 64 352 256 0 1.0E-6 0 0
+w 352 256 96 256 0
+g 96 256 96 288 0
+o 4 64 0 2 5.0 0.001
+```
+
+**Demonstrates**: AC source (waveform=1), capacitor, scope (`o` line). elmIndex=4 points to the capacitor (5th component, 0-based). Scope flags=2 (showV).
+
+### 10.3 NPN transistor switch
+
+An NPN transistor (flags=0, ideal default model) switches an LED. Base driven by a 5V control source through 10kΩ. Collector load = 220Ω + LED. Emitter to ground.
+
+```
+$ 1 5.0E-6 10 50 5.0 50
+v 64 32 64 288 0 0 40.0 5.0 0.0 0.0 0.5
+w 64 32 384 32 0
+r 384 32 384 112 0 220.0
+162 384 112 384 176 0 1.0 0.0 0.0
+t 288 192 384 192 0 1 0 0 100
+r 192 192 288 192 0 10000.0
+v 96 192 96 288 0 0 40.0 5.0 0.0 0.0 0.5
+w 96 192 192 192 0
+w 384 208 384 288 0
+g 64 288 64 320 0
+w 64 288 96 288 0
+w 96 288 384 288 0
+```
+
+**Demonstrates**: NPN transistor (flags=0, collector above emitter), dual voltage sources, base drive. Note the wire at (96,288) is split into two segments so the V2 negative terminal becomes a wire endpoint (avoids the "wire intermediate point" trap).
+
+### 10.4 Voltage divider with scope
+
+A 12V supply divided by 8kΩ/4kΩ. Midpoint sits at 4V. Scope plots the midpoint (across R2, the lower resistor).
+
+```
+$ 1 5.0E-6 10 50 5.0 50
+v 96 256 96 64 0 0 40.0 12.0 0.0 0.0 0.5
+w 96 64 192 64 0
+r 192 64 192 160 0 8000.0
+r 192 160 192 256 0 4000.0
+w 192 256 96 256 0
+g 96 256 96 288 0
+o 3 64 0 2 12.0 0.001
+```
+
+**Demonstrates**: vertical resistor chain, voltage division, scope elmIndex=3 (the 4kΩ lower resistor). Scope value=0 (VAL_VOLTAGE) shows the voltage across R2 = 4V.
+
+### 10.5 Diode with custom 1N4148 model
+
+A diode using a custom DiodeModel definition (named `MY-1N4148`), referenced via flags=2 (FLAG_MODEL). Demonstrates the model-before-component ordering rule.
+
+```
+$ 1 5.0E-6 10 50 5.0 50
+34 MY-1N4148 0 4.352E-9 0.6458 1.906 75.0 0.0
+v 96 256 96 64 0 0 40.0 5.0 0.0 0.0 0.5
+w 96 64 192 64 0
+r 192 64 288 64 0 470.0
+w 288 64 288 176 0
+d 288 176 288 256 2 MY-1N4148
+w 288 256 96 256 0
+g 96 256 96 288 0
+```
+
+**Demonstrates**: DiodeModel definition (`34` line) with SPICE parameters, DiodeElm with flags=2 referencing the model by name. The `34` line MUST come before the `d` line.
+
+### 10.6 Adjustable resistor with slider and scope
+
+A 5V supply through a resistor (initial 500Ω) to ground. A slider (`38`) lets the user sweep resistance 0–1000Ω at runtime. A scope plots the resistor voltage.
+
+```
+$ 1 5.0E-6 10 50 5.0 50
+v 96 256 96 64 0 0 40.0 5.0 0.0 0.0 0.5
+w 96 64 192 64 0
+r 192 64 288 64 0 500.0
+w 288 64 288 256 0
+w 288 256 96 256 0
+g 96 256 96 288 0
+38 2 0 0.0 1000.0 R
+o 2 64 0 2 5.0 0.05
+```
+
+**Demonstrates**: Adjustable slider (`38` line) targeting elmIndex=2 (the resistor, 3rd component), editItem=0 (resistance), range 0–1000, label "R". Scope elmIndex=2 plots the resistor voltage. Both `38` and `o` lines come AFTER all component lines.
 
 ---
 
@@ -657,7 +812,8 @@ When generating a circuit, the AI's response MUST contain:
 1. A fenced code block labeled `circuitjs` with the complete circuit text (starting with `$` and ending with the last component/scope/slider line).
 2. A one-paragraph explanation of the circuit function.
 3. The expected simulation behavior (currents, voltages, LED states).
-4. Import instructions: "Open circuitjs1 → File → Import From Text... → paste the block → OK."
+4. Import instructions with bilingual menu paths: "Open circuitjs1 → File → Import From Text... (文件 → 从文本导入...) → paste the block → OK."
 5. (Optional) Suggestions for the user to tweak (e.g. "change 220.0 to 330.0 to dim the LED").
+6. **Language**: respond in the same language the user used (Chinese → Chinese, English → English). The circuit text itself is language-neutral.
 
 Do NOT include any commentary inside the code block — only valid circuit text.
