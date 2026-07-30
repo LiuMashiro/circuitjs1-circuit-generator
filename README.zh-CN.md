@@ -38,15 +38,6 @@
 
 [`examples/`](./examples) 目录下包含六个完整的电路示例：
 
-| 文件 | 电路 | 演示内容 |
-|------|------|---------|
-| `01_led_circuit.txt` | LED + 220Ω 电阻接 5V 直流 | 基础无源元件、LED、闭合回路 |
-| `02_rc_lowpass.txt` | RC 低通滤波器 + 示波器 | 交流电源、电容、示波器 |
-| `03_transistor_switch.txt` | NPN 晶体管开关 LED | 三极管、双电源、基极驱动 |
-| `04_voltage_divider.txt` | 12V 分压器（8kΩ/4kΩ）+ 示波器 | 分压、示波器显示中点电压 |
-| `05_custom_diode_model.txt` | 使用自定义 1N4148 模型的二极管 | DiodeModel 定义、FLAG_MODEL |
-| `06_slider_resistor.txt` | 可调电阻 + 示波器 | 可调滑块（`38`）、运行时控制 |
-
 [`SKILL.md`](./SKILL.md) 包含：
 
 - **格式总览** —— 行结构、token 分隔符、实体类型分派表
@@ -54,10 +45,11 @@
 - **连接规则** —— 坐标匹配机制，包括关键的"导线中间点不连接"警告
 - **转义规则** —— `CustomLogicModel.escape` 方案，用于含空格/特殊字符的字符串
 - **完整元件参考** —— 每个常用元件的精确字段顺序（无源、电源、开关、测量、逻辑、标签）
-- **模型定义** —— DiodeModel（`34`）、TransistorModel（`32`）、CustomLogicModel（`!`）、CustomCompositeModel（`.`）
-- **可调滑块**（`38`）—— 运行时可控制的元件属性
+- **模型定义** —— DiodeModel（`34`）、TransistorModel（`32`）、CustomLogicModel（`!`）、CustomCompositeModel（`.`），理想和实际模型选择指导
+- **可调滑块**（`38`）—— 运行时可控制的元件属性，何时使用滑块指导
 - **示波器**（`o`）—— 按索引引用元件的示波器波形
 - **生成工作流** —— 严格的 9 步流程，附 5 部分自检清单
+- **6个完整示例** —— LED、RC 滤波器、晶体管开关、分压器、自定义二极管模型、可调电阻
 - **故障排查表** —— 常见错误与修复方法
 - **快速参考卡** —— 每个常用元件的单行模板
 
@@ -76,4 +68,4 @@ circuitjs1 通过 `CirSim.dumpCircuit()` 序列化电路，通过 `CirSim.readCi
 
 ## 许可证
 
-circuitjs1 项目和 Falstad 模拟器有各自的许可证 —— 分发打包电路或截图时请遵守相应许可。
+[circuitjs1](https://github.com/sharpie7/circuitjs1) 项目和 [Falstad 模拟器]((https://www.falstad.com/circuit/))有各自的许可证 —— 分发打包电路或截图时请遵守相应许可。
