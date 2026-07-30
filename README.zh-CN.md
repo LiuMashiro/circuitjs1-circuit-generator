@@ -67,3 +67,6 @@ circuitjs1 通过 `CirSim.dumpCircuit()` 序列化电路，通过 `CirSim.readCi
 ## 许可证
 
 [circuitjs1](https://github.com/sharpie7/circuitjs1) 项目和 [Falstad 模拟器]((https://www.falstad.com/circuit/))有各自的许可证 —— 分发打包电路或截图时请遵守相应许可。
+
+## 问题
+skill 在 9.0 小节要求不支持多模态能力的 AI 避免猜测图像给出错误电路结果，这是一个要求 AI 主动拒绝能力外请求的严厉措辞提示词，在极个别敏感的 AI 模型中可能被误识别为风险，拒绝处理。如果你遇到了情况，只要确认你当前在使用多模态模型，即可自行移除9.0小节内容。
