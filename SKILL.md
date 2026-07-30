@@ -5,7 +5,7 @@ description: "Generates circuitjs1-importable plain-text circuits from natural l
 
 # CircuitJS1 Circuit Text Generator
 
-This skill enables the AI to generate complete, valid circuitjs1 circuits as plain text. The output can be imported into the circuitjs1 (Falstad) circuit simulator via **File → Import From Text...** (Chinese UI: 文件 → 从文本导入...) without any GUI operations.
+This skill enables the AI to generate complete, valid circuitjs1 circuits as plain text (code). The output can be imported into the circuitjs1 (Falstad) circuit simulator via **File → Import From Text...** (Chinese UI: 文件 → 从文本导入...) without any GUI operations.
 
 ## When to Invoke
 
@@ -18,28 +18,28 @@ Invoke this skill when:
 
 ## How the User Imports the Output
 
-After the AI generates the circuit text, the user does ONE of:
+1. **Import From Text**: Open circuitjs1 → menu `File → Import From Text...` (Chinese UI: 文件 → 从文本导入...) → paste the entire text block → click OK.
+2. **URL parameter**: Replace every `$` with `%24` and every newline with `%0A`, then append to the simulator URL as `?cct=<encoded>`. (www.falstad.com/circuit/circuitjs.html?cct=...) **You do NOT need to access this URL.**
+3. **Local file**: Save as `.txt`, then `File → Import From File...` (Chinese UI: 文件 → 打开文件...).
 
-1. **Import From Text (recommended)**: Open circuitjs1 → menu `File → Import From Text...` (Chinese UI: 文件 → 从文本导入...) → paste the entire text block → click OK.
-2. **URL parameter**: Replace every `$` with `%24` and every newline with `%0A`, then append to the simulator URL as `?cct=<encoded>`.
-3. **Local file**: Save as `.txt`, then `File → Import From File...` (Chinese UI: 文件 → 从文件导入...).
-
-The AI should always present the circuit inside a fenced code block labeled `circuitjs` so the user can copy it easily.
+The AI should always present the circuit inside a fenced code block so the user can copy it easily.
 
 ## Output Language
 
-circuitjs1 itself supports Chinese localization (the GUI, menus, and component labels render in Chinese when the locale is set). Therefore:
+circuitjs1 itself supports Chinese localization.
 
 - **If the user asks in Chinese**, respond in Chinese for all explanations, expected behavior, and import instructions. The circuit text itself is language-neutral (format is identical regardless of language).
+  - String fields inside the circuit text (sliderText, text labels, model names, scope labels) MAY contain Chinese characters — the escape rules in §4 handle them correctly. When the user uses Chinese, prefer Chinese labels (e.g. sliderText `亮度` for "brightness").
+
 - **If the user asks in English**, respond in English.
-- When giving menu paths, always show the English path first, then the Chinese in parentheses, e.g. `File → Import From Text... (文件 → 从文本导入...)`.
-- String fields inside the circuit text (sliderText, text labels, model names, scope labels) MAY contain Chinese characters — the escape rules in §4 handle them correctly. When the user uses Chinese, prefer Chinese labels (e.g. sliderText `亮度` for "brightness").
 
 ---
 
 ## 1. Format Overview
 
 The circuit is **line-oriented plain text**:
+
+> **draft before you write.** draw an ASCII-art schematic to lock the topology, then assign exact coordinates (node list + component list + connectivity trace, see §9 Step 2) and verify it passes the closed-loop, ground-attachment, wire-splitting, and no-floating-node checks. Most simulator errors are preventable at the draft stage.
 
 - **Line 1** must be the global options line starting with `$`.
 - **Subsequent lines** each represent one entity: a component, a model definition, a scope, or a slider.
@@ -326,7 +326,7 @@ Both endpoints named `VCC` are connected.
 
 This is the feature that lets the user pick specific component models (e.g. a 1N4148 diode, a 2N2222 transistor, a custom logic block). **Fully supported via text.**
 
-### 6.0 When to use ideal vs. actual models (IMPORTANT — infer from context)
+### 6.0 When to use ideal vs. actual models (infer from context)
 
 When the user does NOT explicitly specify a part number or model, **infer the intent from circuit complexity**:
 
@@ -446,9 +446,9 @@ Define a sub-circuit (hierarchical block) containing nested components. This is 
 
 Add a slider to control any component property at runtime.
 
-### 7.0 When to use sliders (IMPORTANT — prefer interactivity)
+### 7.0 When to use sliders (prefer interactivity)
 
-**Strongly prefer sliders when the user does NOT specify exact values.** This turns a static circuit into an explorable one and is almost always the better UX:
+**Prefer sliders when the user does NOT specify exact values.** This turns a static circuit into an explorable one and is almost always the better UX:
 
 - User says "a resistor and an LED" without a value → use a `38` slider on the resistor (range 100–2000 Ω) so the user can dial in brightness.
 - User says "a voltage source" without a value → use a `172` VarRailElm (built-in slider) instead of a fixed `v` source, range 0–12 V.
@@ -559,7 +559,26 @@ o 0 64 0 2 5.0 0.1
 
 ---
 
-## 9. Generation Workflow (STRICT — follow in order)
+## 9. Generation Workflow (follow in order)
+
+### Step 0: Self-check — can you actually see the user's input?
+
+Before doing anything else, the AI MUST honestly assess what it can perceive:
+
+**Are you a multimodal AI?**
+
+- **If the user provided a circuit IMAGE and the Multimodal AI Model has vision capability** (the image was actually rendered to the AI, **NOT** just described): proceed normally, using the image as the source of truth.
+- **If the user provided a circuit IMAGE but the AI has NO vision capability** (the AI only received text extracted from the image, an OCR dump, a caption, a summary, or a description of the image — but cannot see the image itself): **DO NOT guess-generate a circuit. WITHOUT EXCUSE, AND IRRESPECTIVE OF WHETHER IT IS DEEMED SATISFACTORY, AN HONEST REFUSAL IS COMPULSORY. Providing an incorrect guess with almost certainly wrong content will frustrate users more than an honest and straightforward refusal.** Respond with something like:
+
+  > You shared a circuit image, but I don't have vision capability in this session — I can only see the text/description that was extracted from it (e.g. "<...>"). Generating a circuit from a partial description risks producing something that doesn't match your actual schematic. Could you instead:
+  > 1. Describe the circuit in your own words (components, connections, values), or
+  > 2. List the components and how they connect (e.g. "5V source → 220Ω resistor → LED → ground"), or
+  > 3. Please advise the user to try using other models that support multimodal capabilities.
+
+  This applies even if the extracted text looks detailed — without seeing the image, spatial relationships (which pin connects where, relative positions, wire routing) cannot be reliably recovered, and the AI must not pretend otherwise.
+
+- **If the user provided a TEXT description (natural language, no image)**: proceed normally. Text descriptions are the intended input format for this skill.
+- **If the user provided a netlist / SPICE / schematic text format**: proceed, translating to circuitjs1 format.
 
 ### Step 1: Understand the request
 - Identify required components (power source, load, control, measurement).
@@ -567,11 +586,104 @@ o 0 64 0 2 5.0 0.1
 - **Slider selection**: check if the user gave exact values. If values are missing or vague, prefer sliders (VarRailElm `172` for sources, `38` for other component properties). See §7.0 for guidance.
 - Identify whether scopes are desired (if the circuit has time-varying signals or the user wants to see waveforms, add a scope).
 
-### Step 2: Plan the layout
-- Sketch coordinates mentally. Use multiples of 8.
+### Step 2: Plan the layout — draft in text
+
+Before writing any circuit line, the AI must draft the circuit as a text sketch in its reasoning. This catches topology errors early (open loops, floating nodes, wire-intermediate-point traps) while they are still cheap to fix.
+
+The draft has TWO parts: first an ASCII-art schematic to visualize topology, then a node/component list to assign exact coordinates.
+
+#### Part A — ASCII-art schematic (topology sketch)
+
+Draw the circuit using ASCII symbols so the topology is visually verifiable. This is the fastest way to catch open loops, wrong parallel/series placement, and missing return paths. Use any clear symbols; suggested conventions:
+
+- `+` / `-` for source terminals
+- `─` `│` for wires (or `-` `|` if ASCII-only)
+- `R1`, `C1`, `L1`, `D1`, `Q1` etc. for components (use reference designators)
+- `LED`, `GND`, `VCC` for special nodes
+- `S1` for switches, `( + )` for source cells
+- Junctions: `+` or `*` where 3+ wires meet
+
+**Example 1 — LED with switch and inductor in parallel with the source:**
+
+```
+          +----- S1 -----+
+          |              |
+          |             L1
+          |              |
+          +-----( + )----+
+```
+
+**Example 2 — NPN transistor switch driving an LED:**
+
+```
+   VCC
+    │
+    ├─── R1 ──── C
+    │            │ Q1 (NPN)
+    │            E
+    │            │
+    │           GND
+    │
+   R2 (base drive from control signal)
+    │
+   ctrl
+```
+
+**Example 3 — RC low-pass filter:**
+
+```
+   in ── R1 ──+── out
+               │
+              C1
+               │
+              GND
+```
+
+The ASCII art does NOT need exact coordinates or values — its purpose is to make the **topology** obvious. Draw it before assigning coordinates. If the ASCII art reveals an open branch or a wrong connection, fix the concept before continuing.
+
+#### Part B — Node list, component list, and verification (coordinate assignment)
+
+After the ASCII art is correct, assign exact coordinates and verify.
+
+Draft format (kept in the AI's internal reasoning):
+
+```
+[NODE LIST]
+VCC  = (96, 64)     # V1+ terminal; also the + rail endpoint
+N1   = (288, 64)    # junction where VCC rail meets R1 top
+N2   = (288, 176)   # R1 bottom = LED anode
+GND  = (96, 256)    # V1- terminal; the ground reference node
+
+[COMPONENT LIST, in planned output order]
+0. v  (96,256)-(96,64)   DC 5V          # V1: + at (96,64)=VCC, - at (96,256)=GND
+1. w  (96,64)-(192,64)                   # wire V1+ to midpoint of VCC rail
+2. w  (192,64)-(288,64)                  # continue VCC rail to N1  (NOTE: split at (192,64) so it's an endpoint, not a middle point)
+3. r  (288,64)-(288,176)  220Ω           # R1: N1 -> N2 (current limiter)
+4. 162 (288,176)-(288,256) red LED       # LED: anode at N2=(288,176), cathode at (288,256)
+5. w  (288,256)-(96,256)                 # wire LED cathode back to GND=V1-
+6. g  (96,256)-(96,288)                  # ground symbol on the GND node
+
+[CONNECTIVITY VERIFICATION]
+- V1+ (96,64)=VCC -> wire -> (192,64) -> wire -> (288,64)=N1 -> R1 -> (288,176)=N2 -> LED -> (288,256) -> wire -> (96,256)=GND=V1-  [CLOSED LOOP ✓]
+- GND attached at (96,256) ✓
+- No wire intermediate-point traps: every junction (192,64), (288,64), (288,256), (96,256) is a wire ENDPOINT ✓
+- No floating nodes ✓
+```
+
+The draft include:
+1. **ASCII-art schematic** (Part A): visual topology sketch using symbols. Verify the topology is correct (no open branches, correct parallel/series placement, closed loop visible) before proceeding to Part B.
+2. **Node list**: every named electrical node and its coordinates.
+3. **Component list in output order**: each line's planned type, endpoints, value, and a comment on which nodes it connects. **The order here determines `elmIndex` for later `38`/`o` lines** — number them explicitly (0, 1, 2, ...).
+4. **Wire-splitting audit**: for any junction where 3+ components meet, verify the junction is a wire ENDPOINT, not a middle point of a longer wire. If not, plan to split the wire.
+5. **Closed-loop verification**: trace the path from source+ through the load back to source−. Mark it `[CLOSED LOOP ✓]`.
+6. **Ground attachment**: confirm the reference node (usually source−) has a GroundElm.
+
+**Only after the draft passes all 6 checks should the AI proceed to write the actual circuit lines.** If the draft reveals a problem, fix the draft first, then re-verify.
+
+Coordinate conventions:
+- Use multiples of 8 (the default grid snap).
 - Decide power rail y-values (e.g. VCC at y=64, GND at y=256).
-- List components in order and assign each a planned (x1,y1,x2,y2).
-- Verify every intended connection has matching coordinates.
+- Recommended range: 16–1000.
 
 ### Step 3: Write the global options line
 ```
@@ -628,6 +740,19 @@ Run through this checklist. If any item fails, fix and re-check.
 - [ ] Voltage source maxVoltage matches the intended supply (e.g. 5.0 for TTL).
 - [ ] LED current = (Vsource − Vled) / R is within 5–30 mA.
 - [ ] Logic hiV/loV match the supply voltage.
+
+**Checklist V6 — Simulation-stop error prevention (see §11.2)**:
+- [ ] No voltage source has its + and − terminals connected by only wires (would trigger `Voltage source/wire loop with no resistance!`). Every voltage source branch has a resistor.
+- [ ] No RailElm/LogicInputElm output goes directly to ground without a resistor (would trigger `Path to ground with no resistance!`).
+- [ ] No pure-capacitor closed loop exists — including a capacitor + voltage source loop with no resistor (would trigger `Capacitor loop with no resistance!`).
+- [ ] No wire forms a self-loop or unresolvable chain (prevents `wire loop detected`).
+- [ ] Every diode/LED/LED-array/seven-seg/transistor branch has a series current-limiting resistor (prevents `max current exceeded`).
+- [ ] No polar capacitor is reverse-biased beyond its `maxNegativeVoltage` (prevents `capacitor exceeded max reverse voltage`).
+- [ ] Every node has a DC path to ground (prevents `Singular matrix!` / `Matrix error`). No isolated sub-circuits.
+- [ ] No extreme component values (0Ω, huge L/C, 0 capacitance) that would cause numerical divergence (prevents `nan/infinite matrix!`).
+- [ ] If using transistors/diodes with custom models, model parameters are reasonable (prevents `Convergence failed!`).
+- [ ] Every component line's field count and order matches §5 (prevents `Exception in stampCircuit()`).
+- [ ] If using TransLineElm, one side is grounded and the delay is reasonable (prevents the two transmission-line errors).
 
 ### Step 9: Output
 
@@ -756,6 +881,8 @@ o 2 64 0 2 5.0 0.05
 
 ## 11. Troubleshooting & Common Errors
 
+### 11.1 Generation-time errors (circuit fails to load or behaves wrong on import)
+
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
 | Component missing after import | Wrong field count or unrecognized type code | Recheck §5 field list; ensure type code is correct char/number |
@@ -769,6 +896,54 @@ o 2 64 0 2 5.0 0.05
 | Model not applied | Model line after component, or flags missing | Move model line BEFORE component; for diodes set flags=2 |
 | Text label splits into tokens | Missing FLAG_ESCAPE | Set flags bit2=4 (so flags=5 for centered); escape spaces |
 | Coordinate connection fails | Off-by-one coordinates | Use multiples of 8; double-check exact equality |
+
+### 11.2 Simulation-time errors (simulator stops with a red message at the bottom)
+
+These are **hard stops** — the simulator sets `stopMessage`, nulls the circuit matrix, and halts. The message is shown in red at the bottom of the canvas. **All 13 known stop messages are listed below.** When the user reports one of these, use this table to diagnose and fix.
+
+**IMPORTANT — note on localization**: circuitjs1 has no Chinese locale file. Even when the GUI is set to Chinese, these stop messages remain in **English** (a few have translations in da/de/es/fr/it/nb/pl/pt/ru, but two — `"Path to ground with no resistance!"` and `"Exception in stampCircuit()"` — have NO translation in any locale). So the user will see the English string. Tell the user this when they say "the error is in English".
+
+#### 11.2.1 Topology errors (caught at analysis time, before simulation starts)
+
+| Error message | Trigger condition | Prevention / Fix |
+|------------------------|-------------------|------------------|
+| `wire loop detected` | A wire path cannot be resolved (self-loop or unresolvable wire chain) | Avoid wires that loop back on themselves; remove redundant wires |
+| `Voltage source/wire loop with no resistance!` | A voltage source (or wire-like component) has a zero-resistance path between its + and − terminals (short circuit) | **Always series a resistor** with every voltage source. Never short a source's + and − with only wires. Check Switch2Elm throws too — a switch can form the short |
+| `Path to ground with no resistance!` | A RailElm or LogicInputElm has a direct path to ground with no resistance | Don't connect RailElm/LogicInputElm outputs directly to ground; series a resistor |
+| `Capacitor loop with no resistance!` | A capacitor forms a closed loop with no resistor in the path — the path may consist of wires + capacitors + voltage sources (a single cap + voltage source loop with no resistor also triggers this) | Don't place capacitors in a capacitor-only or capacitor+source loop; add a series or parallel resistor |
+
+**Prevention during generation (Step 2 draft)**: in the draft's connectivity trace, if you find a path from source+ back to source− that passes through ONLY wires (or only capacitors), you will hit one of these. Insert a resistor.
+
+#### 11.2.2 Matrix / numerical errors (during simulation)
+
+| Error message | Trigger condition | Prevention / Fix |
+|------------------------|-------------------|------------------|
+| `Singular matrix!` | The circuit matrix cannot be LU-factored — circuit is under-defined (isolated nodes, too many independent sources, missing ground) | Ensure every node has a DC path to ground; don't create isolated sub-circuits; check that ground is attached |
+| `Matrix error` | Matrix simplification found an empty row (variant of singular matrix) | Same as `Singular matrix!` |
+| `nan/infinite matrix!` | A matrix entry became NaN or ±Infinity during solving — numerical divergence | Reduce `maxTimeStep` in the `$` line (e.g. from `5.0E-6` to `1.0E-6`); check for extreme component values (0Ω, huge L/C) |
+| `Convergence failed!` | Non-linear iteration count exhausted (100 or 5000 depending on adaptive timestep) without convergence | Reduce `maxTimeStep`; add a parallel resistor across non-linear elements (diodes, transistors) to improve convergence; check diode/transistor model parameters aren't extreme |
+| `Exception in stampCircuit()` | A component's `stamp()` threw an unexpected exception | Usually a malformed component line; recheck field order and values against §5 |
+
+#### 11.2.3 Component-specific errors (during simulation, per-component)
+
+| Error message | Trigger condition | Prevention / Fix |
+|------------------------|-------------------|------------------|
+| `max current exceeded` | Current through a diode / LED (LEDElm inherits DiodeElm) / LED array / seven-seg / transistor exceeds **1e12 A** (hardcoded threshold). This is a numerical-protection stop, NOT a real current rating | The circuit has numerically diverged. Root cause is almost always a missing current-limiting resistor in a diode/LED/transistor branch, or a topology error that was masked. **Always add a series resistor** with diodes/LEDs/transistors |
+| `capacitor exceeded max reverse voltage` | A PolarCapacitorElm reverse voltage exceeds its `maxNegativeVoltage` (default 1V) | Check polar capacitor orientation: anode must be at higher voltage than cathode. If the circuit legitimately reverses the cap, increase `maxNegativeVoltage` in the component line, or use a non-polar capacitor (`c`) |
+| `Transmission line delay too large!` | TransLineElm delay is too large for the internal buffer to allocate | Reduce the transmission line's `delay` parameter |
+| `Need to ground transmission line!` | A TransLineElm's input or output node voltage is non-zero (>1e-5) but neither side is grounded | Ground one side of the transmission line (usually the output reference) |
+
+### 11.3 Diagnostic flowchart when the user reports an error
+
+When the user says "the circuit doesn't work" / "there's an error" / "simulation stopped", the AI should:
+
+1. **Ask for the exact error string** (the red text at the bottom). It will be one of the 13 messages above.
+2. **Map it to the table** in §11.2 and apply the listed fix.
+3. **If no visible error but the circuit misbehaves** (e.g. LED stays dark, no current flows, one side is grey):
+   - Likely a topology problem (open loop, floating node, wire-intermediate-point trap).
+   - Re-run the Step 2 draft and Step 8 checklist on the current circuit.
+   - Ask the user: "what does the canvas look like? is any part grey? what's the voltage shown on components?"
+5. **Always offer a corrected circuit text block** after diagnosis — don't just describe the fix, regenerate the circuit with the fix applied.
 
 ---
 
