@@ -10,9 +10,9 @@ Let AI generate complete, importable circuits for [circuitjs1](https://github.co
 
 **Installation**
 
-Download the repository and give it to your AI program.
+Download the entire repository and send it to your AI program as a skill. AI programs can usually recognize a .zip file that contains a [`SKILL.md`](./SKILL.md) in the root directory, or you can let the AI add this skill by natural language.
 
-If using a web-based AI, you can also copy the contents of `SKILL.md` into the chat window.
+If using a web-based AI, you can also copy the contents of [`SKILL.md`](./SKILL.md) into the chat window. However, this will lose the 6 examples that help AI understanding.
 
 **Usage**
 
@@ -36,16 +36,7 @@ If using a web-based AI, you can also copy the contents of `SKILL.md` into the c
 
 ## Files
 
-Six fully-worked circuits are included in [`examples/`](./examples):
-
-| File | Circuit | Demonstrates |
-|------|---------|--------------|
-| `01_led_circuit.txt` | LED + 220Ω resistor on 5V DC | Basic passive components, LED, closed loop |
-| `02_rc_lowpass.txt` | RC low-pass filter + scope | AC source, capacitor, oscilloscope |
-| `03_transistor_switch.txt` | NPN transistor switching an LED | BJT, dual voltage sources, base drive |
-| `04_voltage_divider.txt` | 12V divider (8kΩ/4kΩ) + scope | Voltage division, scope on midpoint |
-| `05_custom_diode_model.txt` | Diode with custom 1N4148 model | DiodeModel definition, FLAG_MODEL |
-| `06_slider_resistor.txt` | Adjustable resistor + scope | Adjustable slider (`38`), runtime control |
+Six fully-worked circuits are included in [`examples/`](./examples).
 
 [`SKILL.md`](./SKILL.md) includes:
 
@@ -54,10 +45,11 @@ Six fully-worked circuits are included in [`examples/`](./examples):
 - **Connection rules** — the coordinate-matching mechanism, including the critical "wire intermediate points do NOT connect" warning
 - **Escape rules** — the `CustomLogicModel.escape` scheme for strings containing spaces/special chars
 - **Complete component reference** — every common component's exact field order (passive, sources, switches, measurement, logic, labels)
-- **Model definitions** — DiodeModel (`34`), TransistorModel (`32`), CustomLogicModel (`!`), CustomCompositeModel (`.`)
-- **Adjustable sliders** (`38`) — runtime-controllable component properties
+- **Model definitions** — DiodeModel (`34`), TransistorModel (`32`), CustomLogicModel (`!`), CustomCompositeModel (`.`), ideal and practical model selection guidance
+- **Adjustable sliders** (`38`) — runtime-controllable component properties, when to use sliders guidance
 - **Scopes** (`o`) — oscilloscope plots referencing components by index
 - **Generation workflow** — a strict 9-step process with a 5-part self-validation checklist
+- **6 complete examples** — LED, RC filter, transistor switch, voltage divider, custom diode model, adjustable resistor
 - **Troubleshooting table** — common errors and fixes
 - **Quick reference card** — one-line templates for every common component
 
@@ -76,4 +68,4 @@ circuitjs1 serializes circuits via `CirSim.dumpCircuit()` and deserializes via `
 
 ## License
 
-The circuitjs1 project and the Falstad simulator have their own licenses — please respect them when distributing bundled circuits or screenshots.
+[circuitjs1](https://github.com/sharpie7/circuitjs1) and the [Falstad simulator](https://www.falstad.com/circuit/) have their own licenses — please respect them when distributing bundled circuits or screenshots.
