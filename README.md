@@ -67,3 +67,6 @@ circuitjs1 serializes circuits via `CirSim.dumpCircuit()` and deserializes via `
 ## License
 
 [circuitjs1](https://github.com/sharpie7/circuitjs1) and the [Falstad simulator](https://www.falstad.com/circuit/) have their own licenses — please respect them when distributing bundled circuits or screenshots.
+
+## Question
+In Section 9.0, the skill requires that AIs without multimodal capabilities avoid guessing image content and giving incorrect circuit results. This is a strict prompt that requires the AI to proactively reject requests beyond its capabilities. In a very small number of sensitive AI models, it may be mistakenly identified as a risk and cause the AI to refuse to respond. If you encounter this situation, as long as you confirm that you are currently using a multimodal model, you can simply remove the content of Section 9.0 yourself.
