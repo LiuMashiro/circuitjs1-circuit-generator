@@ -12,7 +12,7 @@
 
 下载整个库，作为 skill，发送至你的 AI 程序。AI 程序通常能识别根目录中有 [`SKILL.md`](./SKILL.md) 的 .zip 文件，或者通过自然语言让 AI 添加这个 skill 也可以。
 
-如果使用网页端 AI，也可以将 [`SKILL.md`](./SKILL.md) 中的内容复制至 AI 对话窗口。但是这会失去 skill 包含的6个有助于 AI 理解的例子。
+如果使用网页端 AI，也可以将 [`SKILL.md`](./SKILL.md) 中的内容复制至 AI 对话窗口。
 
 **使用**
 
@@ -35,8 +35,6 @@
 
 
 ## 文件
-
-[`examples/`](./examples) 目录下包含六个完整的电路示例：
 
 [`SKILL.md`](./SKILL.md) 包含：
 
