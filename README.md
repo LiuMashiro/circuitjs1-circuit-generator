@@ -36,8 +36,6 @@ If using a web-based AI, you can also copy the contents of [`SKILL.md`](./SKILL.
 
 ## Files
 
-Six fully-worked circuits are included in [`examples/`](./examples).
-
 [`SKILL.md`](./SKILL.md) includes:
 
 - **Format overview** — line structure, token separators, entity dispatch table
