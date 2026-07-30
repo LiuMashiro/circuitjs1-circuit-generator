@@ -12,7 +12,7 @@ Let AI generate complete, importable circuits for [circuitjs1](https://github.co
 
 Download the entire repository and send it to your AI program as a skill. AI programs can usually recognize a .zip file that contains a [`SKILL.md`](./SKILL.md) in the root directory, or you can let the AI add this skill by natural language.
 
-If using a web-based AI, you can also copy the contents of [`SKILL.md`](./SKILL.md) into the chat window. However, this will lose the 6 examples that help AI understanding.
+If using a web-based AI, you can also copy the contents of [`SKILL.md`](./SKILL.md) into the chat window.
 
 **Usage**
 
