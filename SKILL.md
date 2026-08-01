@@ -19,10 +19,35 @@ Invoke this skill when:
 ## How the User Imports the Output
 
 1. **Import From Text**: Open circuitjs1 → menu `File → Import From Text...` (Chinese UI: 文件 → 从文本导入...) → paste the entire text block → click OK.
-2. **URL parameter**: Replace every `$` with `%24` and every newline with `%0A`, then append to the simulator URL as `?cct=<encoded>`. (www.falstad.com/circuit/circuitjs.html?cct=...) **You do NOT need to access this URL.**
+2. **URL parameter**: Replace every `$` with `%24` and every newline with `%0A`, then append to the simulator URL as `?cct=<encoded>`. (www.falstad.com/circuit/circuitjs.html?cct=...) **You do NOT need to access this URL.** The AI should provide this URL as a deliverable alongside the text block (see §14).
 3. **Local file**: Save as `.txt`, then `File → Import From File...` (Chinese UI: 文件 → 打开文件...).
 
 The AI should always present the circuit inside a fenced code block so the user can copy it easily.
+
+### URL construction rule (for the AI to generate deliverable URLs)
+
+To build a clickable URL that opens the circuit directly in the Falstad online simulator:
+
+1. Take the complete circuit text (starting with `$`, including all lines).
+2. **First**, if the circuit text contains any literal `%` characters (e.g. from legacy `%2B` encoding of `+` in sliderText), replace `%` with `%25` BEFORE any other replacement. This prevents the URL decoder from misinterpreting `%24`/`%2B` sequences. (Best practice: use the `\p` escape from §4 instead of `%2B` to avoid this issue entirely.)
+3. Replace every `$` character with `%24`.
+4. Replace every newline (`\n`) with `%0A`.
+5. Replace spaces with `+` (or `%20`). Do NOT leave raw spaces in the URL — use `+` for robustness.
+6. Prepend `https://www.falstad.com/circuit/circuitjs.html?cct=` to the encoded string.
+
+**Example** — circuit text:
+```
+$ 1 5.0E-6 10 50 5.0 50
+v 96 256 96 64 0 0 40.0 5.0 0.0 0.0 0.5
+g 96 256 96 288 0
+```
+
+Becomes URL:
+```
+https://www.falstad.com/circuit/circuitjs.html?cct=%24+1+5.0E-6+10+50+5.0+50%0Av+96+256+96+64+0+0+40.0+5.0+0.0+0.0+0.5%0Ag+96+256+96+288+0
+```
+
+**Length warning**: URLs over ~2000 characters may be truncated by some browsers/servers. For long circuits, prefer the text-block import method. The URL is best for short circuits (≤30 lines) or for sharing.
 
 ## Output Language
 
@@ -65,6 +90,8 @@ The circuit is **line-oriented plain text**:
 | Any number ≥ 128 | Component, number-typed | e.g. `162` (LED), `172` (VarRail) |
 
 **Critical ordering rule**: A model definition line (34/32/!/.) MUST appear BEFORE the component line that references it. (This mirrors `dumpCircuit`, which calls `dumpModel()` before `dump()`.)
+
+After reading and executing this step, you must explicitly mark **"Step 1 completed"** in the reasoning process.
 
 ---
 
@@ -126,6 +153,8 @@ Component A endpoint (192, 64)  !=  Component B endpoint (192, 65)  →  NOT con
 - Power rails often run horizontally at fixed y-values (e.g. VCC at y=64, GND at y=256).
 - Components are typically vertical (different y, same x) or horizontal (different x, same y).
 
+After reading and executing this step, you must explicitly mark **"Step 3 completed"** in the reasoning process.
+
 ---
 
 ## 4. Escape Rules (CustomLogicModel.escape)
@@ -183,8 +212,9 @@ All fields are listed in exact dump order. "State vars" are simulation state; in
 - `symbolType` (ground): `0` = earth symbol.
 - `pnp` (transistor): `1` = NPN, `-1` = PNP.
 - `beta` (transistor): current gain, typical `100`.
-- `vt` (MOSFET): threshold voltage, typical `0.75`.
-- `beta` (MOSFET): transconductance param, typical `0.03`.
+- `vt` (MOSFET): threshold voltage. Source default `1.5` V; typical logic-level MOSFET `0.75`–`1.0` V.
+- `beta` (MOSFET): transconductance param. Source default `0.02`; typical `0.03`. The model is Shichman-Hodges (no channel-length modulation by default).
+- **MOSFET body diode**: the GUI auto-sets `FLAG_BODY_DIODE=32` when creating a MOSFET, but **text import does NOT** — a `flags=0` MOSFET has NO body diode. To enable the body diode (recommended for real circuits with inductive loads), set `flags=32` (or `33` = 32+1 if also PNP). The body diode uses the default diode model (Vf≈0.806V).
 - `modelName` (transistor): optional; omit to use default model.
 - `maxNegativeVoltage` (polar cap): max reverse voltage before sim stops, default `1`.
 
@@ -314,11 +344,25 @@ Both endpoints named `VCC` are connected.
 
 | Type | Class | Full field format |
 |------|-------|-------------------|
-| `a` | OpAmpElm (ideal) | `a x1 y1 x2 y2 flags` (no extra fields) |
+| `a` | OpAmpElm (near-ideal) | `a x1 y1 x2 y2 flags` (no extra fields) |
+
+**OpAmpElm characteristics** (near-ideal, not strictly ideal): finite gain = 100000, output swing bounded to ±15V, infinite input impedance (`getConnection`=false), zero output impedance, no slew rate, no GBW limit (the `gbw` field exists but is inactive). For a real op-amp model (LM741/LM324 transistor-level, with slew rate 0.6 V/µs and current limit 23 mA), use OpAmpRealElm (type 409) instead — but its text format is complex and not covered here.
 | `403` | ScopeElm (in-circuit) | `403 x1 y1 x2 y2 flags ...` |
 | `174` | PotElm (potentiometer) | `174 x1 y1 x2 y2 flags resistance position` |
 | `159` | AnalogSwitchElm | `159 x1 y1 x2 y2 flags ...` |
 | `165` | TimerElm (555) | `165 x1 y1 x2 y2 flags ...` |
+
+**Model characteristics of these components** (so the AI knows what is ideal vs. real):
+- **AnalogSwitchElm (159)**: near-ideal switch — r_on=20Ω, r_off=1e10Ω, control threshold 2.5V. No charge injection, no capacitance.
+- **TimerElm (165, 555)**: behavioral model (not transistor-level) — internal divider 5kΩ/10kΩ sets 2/3 Vcc threshold, discharge transistor on-resistance 10Ω, output switches via 1Ω to Vcc/GND. Reasonable for timing-circuit design.
+- **TransLineElm (171)**: ideal lossless transmission line — only characteristic impedance (default 75Ω) + delay. Resistance/loss is NOT implemented.
+- **RelayElm (178)**: behavioral with real coil — coil inductance 0.2H, coil resistance 20Ω, switch r_on=0.05Ω/r_off=1e6Ω, pull-in current 20mA.
+- **LampElm (181)**: real thermal model — temperature-dependent resistance (warmup/cooling time constant 0.4s), rated 100W/120V by default. NOT a fixed resistor.
+- **ComparatorElm (401)**: composite = OpAmpElm + AnalogSwitchElm. Inherits OpAmp near-ideal characteristics.
+- **CC2Elm (179, 2nd-gen current conveyor)**: truly ideal — Vx=Vy, Iz=gain·Ix, no parasitics.
+- **OpAmpRealElm (409)**: real LM741/LM324 transistor-level model with slew rate 0.6 V/µs and current limit 23 mA. Text format complex; avoid unless the user explicitly needs a real op-amp.
+
+After reading and executing this step, you must explicitly mark **"Step 5 completed"** in the reasoning process.
 
 ---
 
@@ -326,28 +370,50 @@ Both endpoints named `VCC` are connected.
 
 This is the feature that lets the user pick specific component models (e.g. a 1N4148 diode, a 2N2222 transistor, a custom logic block). **Fully supported via text.**
 
-### 6.0 When to use ideal vs. actual models (infer from context)
+### 6.0 When to use default vs. custom models (infer from context)
+
+**IMPORTANT — circuitjs1's "default" models are generally NOT ideal.** Here is the full picture of what "default" actually means for each component family:
+
+**Diodes (DiodeElm/ZenerElm/LEDElm and all diode-using components)**: NO built-in ideal diode exists. The `default` diode model is a real Shockley exponential PN-junction model with:
+- `saturationCurrent` (Is) = 1.714e-7 A (≈171 nA reverse leakage)
+- `emissionCoefficient` (N) = 2
+- `seriesResistance` (Rs) = 0 Ω
+- forward voltage drop ≈ **0.806 V @ 1 A** (NOT 0.7 V, NOT 0 V)
+
+The `default-led` model has forward drop ≈ 2 V. Components that internally use the default diode model include: DiodeElm, ZenerElm, LEDElm, VaractorElm, SCRElm, DiacElm, TriacElm, JfetElm (gate junction), MosfetElm (body diode). To get a near-ideal diode (Vf≈0), define a custom DiodeModel with a very small `emissionCoefficient` (e.g. N=0.01, Is=1e-14 → Vf≈8 mV); see the formula in §6.1.
+
+**Transistors (TransistorElm)**: the `default` model is a **simplified Gummel-Poon** model — it keeps the exponential transport current (satCur=1e-13 A) and reverse beta (betaR=1), but has Early voltage=∞ (invEarlyVolt=0), no high-current roll-off, and no BE/BC leakage. So it is "simpler than full SPICE" but still NOT an ideal current-controlled current source — it has an exponential Vbe-Ic relationship and ~1e-13 A leakage. The forward beta (BF, default 100) is a TransistorElm field, NOT a model parameter.
+
+**MOSFETs (MosfetElm)**: uses the **Shichman-Hodges model** (not a Model class — vt/beta are direct component fields). No channel-length modulation (lambda=0) by default. **Body diode**: the GUI auto-enables it (FLAG_BODY_DIODE=32), but text import does NOT — you must set `flags=32` explicitly to get the body diode (it uses the default diode model, Vf≈0.806V). Source defaults: vt=1.5V, beta=0.02. It is a real square-law model, NOT an ideal switch.
+
+**OpAmps (OpAmpElm, type `a`)**: **near-ideal** — finite gain 100000, output bounded ±15V, infinite input impedance, zero output impedance, no slew rate, no GBW limit. Good enough for most teaching circuits. For real op-amp behavior (slew rate, current limit), use OpAmpRealElm (409, LM741/LM324) — but its text format is complex.
+
+**Near-ideal / idealized components**: AnalogSwitchElm (159, near-ideal switch r_on=20Ω), TransLineElm (171, lossless), CC2Elm (179, truly ideal current conveyor), logic gates (§5.5, idealized voltage-level logic).
+
+**Other real models**: LampElm (181, thermal), TunnelDiodeElm (175, fixed tunnel-diode equation), TriodeElm (173, Child-Langmuir), TimerElm (165, behavioral 555), RelayElm (178, behavioral with real coil inductance).
 
 When the user does NOT explicitly specify a part number or model, **infer the intent from circuit complexity**:
 
-- **Prefer IDEAL models (flags=0, default) when**:
+- **Prefer DEFAULT built-in models (flags=0) when**:
   - The circuit is simple (few components, teaching/demonstration purpose).
   - The user describes behavior, not specific parts (e.g. "an LED with a resistor", "an NPN switch").
   - No real part numbers are mentioned.
   - The user is clearly learning or prototyping conceptually.
-  - For diodes/LEDs: use `flags=0` (default model, fwdrop≈2.1V for LED, ≈0.7V for diode).
-  - For transistors: omit `modelName` (uses "default" model).
-  - For MOSFETs: use `flags=0` with typical `vt=0.75`, `beta=0.03`.
-
-- **Prefer ACTUAL models (custom model definitions) when**:
+  - For diodes/LEDs: use `flags=0` (default model, fwdrop≈0.806V for diode, ≈2V for LED).
+  - For transistors: omit `modelName` (uses "default" model — simplified Gummel-Poon, no Early/roll-off).
+  - For MOSFETs: use `flags=0` with `vt` and `beta` (source defaults 1.5/0.02; typical logic-level 0.75–1.0/0.03).
+  - For op-amps: use `a` (OpAmpElm, near-ideal) — sufficient for almost all teaching circuits.
+- **Prefer CUSTOM models (model definition lines) when**:
   - The user explicitly names a part (e.g. "1N4148 diode", "2N2222 transistor", "1N4007").
   - The circuit is for realistic simulation (power supply, amplifier with specific biasing).
   - The user mentions SPICE parameters, datasheet values, or precise electrical characteristics.
   - For zener diodes with specific breakdown voltages, define a DiodeModel with the correct BV.
+  - When the user needs near-ideal diode behavior (define a custom model with small N).
+  - When the user needs a real op-amp (slew rate, current limit) — use OpAmpRealElm (409), but warn about format complexity.
+- **When uncertain**: default to built-in models (flags=0). They are simpler and sufficient for most teaching/prototype circuits. You can always mention "used default models; tell me a specific part number if you want a real model" in the output.
+- When you are not fully confident about the generated content, you may skip custom model definition and select the default model as a simpler, more reliable solution.
 
-- **When uncertain**: default to ideal models (flags=0). They simulate faster and are easier to reason about. You can always mention "used ideal models; tell me a specific part number if you want a real model" in the output.
-
-**Rationale**: ideal models make the circuit's logical behavior transparent and avoid spurious secondary effects (leakage, Early voltage, etc.) that can confuse beginners. Real models add fidelity but also add non-ideal effects that may not match the user's mental model of the circuit.
+**Rationale**: built-in default models make the circuit's logical behavior transparent and avoid spurious secondary effects (excessive leakage, Early voltage, etc.) that can confuse beginners. Custom models add fidelity but also add non-ideal effects that may not match the user's mental model of the circuit.
 
 ### 6.1 DiodeModel (line prefix `34`)
 
@@ -378,6 +444,27 @@ d 32 96 32 128 2 1N4148
 - `default`, `spice-default`, `default-zener` (BV=5.6)
 - `default-led`, `old-default-led`
 - `1N5711`, `1N5712`, `1N34`, `1N4004`, `1N4148`
+
+**Forward voltage drop formula** (for custom models):
+```
+fwdrop @1A = ln(1/saturationCurrent + 1) × emissionCoefficient × 0.025865
+```
+where 0.025865 is the thermal voltage Vt at SPICE default temperature (27°C = 300.15 K). This `fwdrop` is the **PN-junction drop only**; the total drop at current I is `fwdrop + I×Rs`. To get a near-ideal diode (Vf≈0), use a very small `emissionCoefficient` (e.g. N=0.01, Is=1e-14 → Vf≈8 mV). Do NOT use N=0 (causes numerical instability — vdcoef becomes Infinity, leading to NaN in simulation). Do NOT simply increase Is to huge values — that creates a large reverse leakage conductance and loses one-way behavior.
+
+**Built-in model parameter reference** (for comparison when choosing). Vf column is the PN-junction drop @1A computed from the formula above (excludes Rs drop; total drop = Vf + 1×Rs):
+
+| Model | Is (A) | Rs (Ω) | N | BV (V) | Vf @1A (PN only) | Total @1A (incl. Rs) | Use case |
+|-------|--------|--------|---|--------|-------------------|----------------------|----------|
+| `default` | 1.714e-7 | 0 | 2 | 0 | 0.806 V | 0.806 V | general diode (circuitjs1 default) |
+| `spice-default` | 1e-14 | 0 | 1 | 0 | 0.834 V | 0.834 V | SPICE-standard silicon |
+| `default-zener` | 1.714e-7 | 0 | 2 | 5.6 | 0.806 V | 0.806 V | 5.6V zener |
+| `default-led` | 93.2e-12 | 0.042 | 3.73 | 0 | 2.23 V | 2.27 V | LED |
+| `old-default-led` | 2.235e-18 | 0 | 2 | 0 | 2.00 V | 2.00 V | old LED (numerically unstable) |
+| `1N4148` | 4.352e-9 | 0.6458 | 1.906 | 75 | 0.95 V | 1.60 V | switching diode (Vf≈0.72V @10mA) |
+| `1N4004` | 18.8e-9 | 0.0286 | 2 | 400 | 0.92 V | 0.95 V | rectifier (400V) |
+| `1N5711` | 315e-9 | 2.8 | 2.03 | 70 | 0.79 V | 3.59 V | Schottky |
+| `1N5712` | 680e-12 | 12 | 1.003 | 20 | 0.71 V | 12.71 V | Schottky |
+| `1N34` | 200e-12 | 0.084 | 2.19 | 60 | 1.27 V | 1.35 V | germanium |
 
 ### 6.2 TransistorModel (line prefix `32`)
 
@@ -440,6 +527,8 @@ Define a sub-circuit (hierarchical block) containing nested components. This is 
 
 **This is complex; beginners should avoid manual creation.** Use it only when the user explicitly needs a sub-circuit. Prefer placing components directly on the canvas.
 
+After reading and executing this step, you must explicitly mark **"Step 6 completed"** in the reasoning process.
+
 ---
 
 ## 7. Adjustable Sliders (line prefix `38`)
@@ -447,8 +536,6 @@ Define a sub-circuit (hierarchical block) containing nested components. This is 
 Add a slider to control any component property at runtime.
 
 ### 7.0 When to use sliders (prefer interactivity)
-
-**Prefer sliders when the user does NOT specify exact values.** This turns a static circuit into an explorable one and is almost always the better UX:
 
 - User says "a resistor and an LED" without a value → use a `38` slider on the resistor (range 100–2000 Ω) so the user can dial in brightness.
 - User says "a voltage source" without a value → use a `172` VarRailElm (built-in slider) instead of a fixed `v` source, range 0–12 V.
@@ -460,6 +547,7 @@ Add a slider to control any component property at runtime.
 - The user gives explicit values (e.g. "220Ω resistor", "5V source") — use fixed values.
 - The circuit is a precise reference design where values matter.
 - The user explicitly asks for a fixed-value circuit.
+- When you are not fully confident about the generated content, you may skip using the slider and opt for a simpler, more reliable solution.
 
 **Two ways to add a slider**:
 1. **VarRailElm (`172`)** — a voltage source with a built-in slider. Use this for adjustable supplies. The sliderText field is the label.
@@ -582,7 +670,7 @@ Before doing anything else, the AI MUST honestly assess what it can perceive:
 
 ### Step 1: Understand the request
 - Identify required components (power source, load, control, measurement).
-- **Model selection**: check if the user named specific parts (e.g. "1N4148", "2N2222"). If not, default to ideal models (flags=0). See §6.0 for guidance.
+- **Model selection**: check if the user named specific parts (e.g. "1N4148", "2N2222"). If not, default to built-in models (flags=0). See §6.0 for guidance.
 - **Slider selection**: check if the user gave exact values. If values are missing or vague, prefer sliders (VarRailElm `172` for sources, `38` for other component properties). See §7.0 for guidance.
 - Identify whether scopes are desired (if the circuit has time-varying signals or the user wants to see waveforms, add a scope).
 
@@ -761,6 +849,8 @@ Present the circuit in a fenced code block. Then provide:
 - The expected behavior (e.g. "LED lights at ~13 mA").
 - Instructions to import (File → Import From Text...).
 
+After reading and executing this step, you must explicitly mark **"Step 9 completed"** in the reasoning process.
+
 ---
 
 ## 10. Examples
@@ -804,7 +894,7 @@ o 4 64 0 2 5.0 0.001
 
 ### 10.3 NPN transistor switch
 
-An NPN transistor (flags=0, ideal default model) switches an LED. Base driven by a 5V control source through 10kΩ. Collector load = 220Ω + LED. Emitter to ground.
+An NPN transistor (flags=0, default model) switches an LED. Base driven by a 5V control source through 10kΩ. Collector load = 220Ω + LED. Emitter to ground.
 
 ```
 $ 1 5.0E-6 10 50 5.0 50
@@ -877,6 +967,8 @@ o 2 64 0 2 5.0 0.05
 
 **Demonstrates**: Adjustable slider (`38` line) targeting elmIndex=2 (the resistor, 3rd component), editItem=0 (resistance), range 0–1000, label "R". Scope elmIndex=2 plots the resistor voltage. Both `38` and `o` lines come AFTER all component lines.
 
+After reading and executing this step, you must explicitly mark **"Step 10 completed"** in the reasoning process.****
+
 ---
 
 ## 11. Troubleshooting & Common Errors
@@ -900,8 +992,6 @@ o 2 64 0 2 5.0 0.05
 ### 11.2 Simulation-time errors (simulator stops with a red message at the bottom)
 
 These are **hard stops** — the simulator sets `stopMessage`, nulls the circuit matrix, and halts. The message is shown in red at the bottom of the canvas. **All 13 known stop messages are listed below.** When the user reports one of these, use this table to diagnose and fix.
-
-**IMPORTANT — note on localization**: circuitjs1 has no Chinese locale file. Even when the GUI is set to Chinese, these stop messages remain in **English** (a few have translations in da/de/es/fr/it/nb/pl/pt/ru, but two — `"Path to ground with no resistance!"` and `"Exception in stampCircuit()"` — have NO translation in any locale). So the user will see the English string. Tell the user this when they say "the error is in English".
 
 #### 11.2.1 Topology errors (caught at analysis time, before simulation starts)
 
@@ -945,6 +1035,8 @@ When the user says "the circuit doesn't work" / "there's an error" / "simulation
    - Ask the user: "what does the canvas look like? is any part grey? what's the voltage shown on components?"
 5. **Always offer a corrected circuit text block** after diagnosis — don't just describe the fix, regenerate the circuit with the fix applied.
 
+After reading and executing this step, you must explicitly mark **"Step 11 completed"** in the reasoning process.
+
 ---
 
 ## 12. Quick Reference Card
@@ -985,10 +1077,11 @@ When in doubt, generate a simpler circuit and tell the user what was simplified.
 When generating a circuit, the AI's response MUST contain:
 
 1. A fenced code block labeled `circuitjs` with the complete circuit text (starting with `$` and ending with the last component/scope/slider line).
-2. A one-paragraph explanation of the circuit function.
-3. The expected simulation behavior (currents, voltages, LED states).
-4. Import instructions with bilingual menu paths: "Open circuitjs1 → File → Import From Text... (文件 → 从文本导入...) → paste the block → OK."
-5. (Optional) Suggestions for the user to tweak (e.g. "change 220.0 to 330.0 to dim the LED").
-6. **Language**: respond in the same language the user used (Chinese → Chinese, English → English). The circuit text itself is language-neutral.
+2. **A Falstad URL** that opens the circuit directly in the online simulator. Construct it per the "URL construction rule" earlier in this file (replace `$`→`%24`, newline→`%0A`, prepend `https://www.falstad.com/circuit/circuitjs.html?cct=`). Present the URL in a fenced code block labeled `url` (or inline code if short enough). If the circuit exceeds ~30 lines, note that the URL may be truncated and recommend the text-block import instead, but still provide the URL.
+3. A one-paragraph explanation of the circuit function.
+4. The expected simulation behavior (currents, voltages, LED states).
+5. Import instructions: "Open circuitjs1 → File → Import From Text... (文件 → 从文本导入...) → paste the block → OK." Also mention: "Or click the URL above to open it directly in the Falstad online simulator."
+6. (Optional) Suggestions for the user to tweak (e.g. "change 220.0 to 330.0 to dim the LED").
+7. **Language**: respond in the same language the user used (Chinese → Chinese, English → English). The circuit text itself is language-neutral.
 
 Do NOT include any commentary inside the code block — only valid circuit text.
